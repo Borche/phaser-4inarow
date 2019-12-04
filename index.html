@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>Phaser Test</title>
+
+  <script src="node_modules/phaser/dist/phaser.js"></script>
+</head>
+
+<body>
+
+  <script>
+    const NUM_ROWS = 6;
+    const NUM_COLS = 7;
+
+    var config = {
+      type: Phaser.AUTO,
+      parent: 'phaser-example',
+      width: 840,
+      height: 760,
+      scene: {
+        preload: preload,
+        create: create
+      }
+    };
+
+    var game = new Phaser.Game(config);
+
+    function preload() {
+    }
+
+    function create() {
+      var whiteGfx = this.add.graphics({ fillStyle: { color: 0xffffff } });
+      var blueGfx = this.add.graphics({ fillStyle: { color: 0x0000ff } });
+      var greenGfx = this.add.graphics({ fillStyle: { color: 0x00ff00 } });
+
+      var self = this;
+
+      var playerTurn = 0;
+      var playerTurnText = self.add.text(16, 730, getPlayerTurnText(), { fontSize: '16px', fill: '#00f' });
+      var errorText = self.add.text(86, 16, 'That column is full. \nPlease choose another column.', { fontSize: '32px', fill: '#f00' });
+      errorText.setAlpha(0);
+      var winText = self.add.text(86, 16, getPlayerTurnText() + ' wins!', { fontSize: '32px', fill: '#0f0' });
+      winText.setAlpha(0);
+
+      createColumnNumberTexts();
+
+      var circles = [];
+      for (let row = 0; row < NUM_ROWS; row++) {
+        circles[row] = [];
+        for (let col = 0; col < NUM_COLS; col++) {
+          circles[row][col] = new Phaser.Geom.Circle(120 + col * 100, 150 + row * 100, 50);
+        }
+      }
+
+      var board = createBoard();
+
+      this.input.on('pointerdown', function (pointer) {
+        updateBoard(pointer);
+      });
+
+      // var key1 = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ONE);
+
+      redraw();
+
+      function redraw() {
+        whiteGfx.clear();
+        blueGfx.clear();
+        greenGfx.clear();
+
+        for (let row = 0; row < NUM_ROWS; row++) {
+          for (let col = 0; col < NUM_COLS; col++) {
+            if (board[row][col] == 1) {
+              blueGfx.fillCircleShape(circles[row][col]);
+            } else if (board[row][col] == 2) {
+              greenGfx.fillCircleShape(circles[row][col]);
+            } else {
+              whiteGfx.fillCircleShape(circles[row][col]);
+            }
+          }
+        }
+      }
+
+      function updateBoard(pointer) {
+        let col = Math.floor((pointer.x - 70) / 100);
+        if (!(col >= 0 && col < NUM_COLS)) return;
+
+        var success = false;
+        var isWinner = false;
+
+        for (var row = NUM_ROWS - 1; row >= 0; row--) {
+          if (board[row][col] === 0) {
+            if (errorText) errorText.setAlpha(0);
+
+            board[row][col] = playerTurn === 0 ? 1 : 2;
+
+            isWinner = evaluateBoard(board, row, col);
+
+            success = true;
+            break;
+          }
+        }
+
+        if (success) {
+          if (isWinner) {
+            winText.setText(getPlayerTurnText() + ' wins!');
+            winText.setStyle(getPlayerTurnStyle());
+            winText.setAlpha(1);
+            self.input.enabled = false;
+          } else {
+            updatePlayerTurn();
+          }
+        } else {
+          errorText.setAlpha(1);
+        }
+
+        redraw();
+
+        function updatePlayerTurn() {
+          playerTurn = playerTurn === 1 ? 0 : 1;
+          playerTurnText.setText(getPlayerTurnText());
+          playerTurnText.setStyle(getPlayerTurnStyle());
+        }
+      }
+
+      function evaluateBoard(board, startRow, startCol) {
+        var symbol = board[startRow][startCol];
+
+        return evalNorthAndSouth() || evalEastAndWest() ||
+          evalNorthEastAndSouthWest() || evalNorthWestAndSouthEast();
+
+        function evalNorthAndSouth() {
+          let totalCount = 1;
+          // NORTH & SOUTH
+          for (let row = startRow - 1; row >= 0; row--) {
+            if (board[row][startCol] == symbol)
+              totalCount++;
+            else
+              break;
+          }
+
+          for (let row = startRow + 1; row < NUM_ROWS; row++) {
+            if (board[row][startCol] === symbol)
+              totalCount++;
+            else
+              break;
+          }
+
+          return totalCount >= 4;
+        }
+
+        function evalEastAndWest() {
+          let totalCount = 1;
+          for (let col = startCol + 1; col < NUM_COLS; col++) {
+            if (board[startRow][col] == symbol)
+              totalCount++;
+            else
+              break;
+          }
+
+          for (let col = startCol - 1; col >= 0; col--) {
+            if (board[startRow][col] == symbol)
+              totalCount++;
+            else
+              break;
+          }
+
+          return totalCount >= 4;
+        }
+        function evalNorthEastAndSouthWest() {
+          let totalCount = 1;
+
+          for (let col = startCol + 1, row = startRow - 1; col < NUM_COLS, row >= 0; col++, row--) {
+            if (board[row][col] == symbol)
+              totalCount++;
+            else
+              break;
+          }
+
+          for (let col = startCol - 1, row = startRow + 1; col >= 0, row < NUM_ROWS; col--, row++) {
+            if (board[row][col] == symbol)
+              totalCount++;
+            else
+              break;
+          }
+
+          return totalCount >= 4;
+        }
+        function evalNorthWestAndSouthEast() {
+          let totalCount = 1;
+
+          for (let col = startCol - 1, row = startRow - 1; col >= 0, row >= 0; col--, row--) {
+            if (board[row][col] == symbol)
+              totalCount++;
+            else
+              break;
+          }
+
+          for (let col = startCol + 1, row = startRow + 1; col < NUM_COLS, row < NUM_ROWS; col++, row++) {
+            if (board[row][col] == symbol)
+              totalCount++;
+            else
+              break;
+          }
+
+          return totalCount >= 4;
+        }
+      }
+
+      function createBoard() {
+        let b = [];
+        for (let row = 0; row < NUM_ROWS; row++) {
+          b[row] = [];
+          for (let col = 0; col < NUM_COLS; col++) {
+            b[row][col] = 0;
+          }
+        }
+        return b;
+      }
+
+      function getPlayerTurnText() {
+        if (playerTurn === 0) return 'Player 1';
+        else if (playerTurn === 1) return 'Player 2';
+        else console.error('Invalid playerTurn: ' + playerTurn);
+      }
+
+      function getPlayerTurnStyle() {
+        if (playerTurn === 0) return { color: '#00f' };
+        else if (playerTurn === 1) return { color: '#0f0' };
+        else console.error('Invalid playerTurn: ' + playerTurn);
+      }
+
+      function createColumnNumberTexts() {
+        for (var col = 0; col < NUM_COLS; col++) {
+          self.add.text(110 + col * 100, 710, col + 1, { fontSize: '32px', fill: '#c8ffd6' });
+        }
+      }
+    }
+  </script>
+
+</body>
+
+</html>
